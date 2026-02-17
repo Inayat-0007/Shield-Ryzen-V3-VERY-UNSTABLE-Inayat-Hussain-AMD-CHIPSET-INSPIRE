@@ -115,4 +115,60 @@ Level 4 → AMD Ryzen AI NPU Live Deploy             📋 Pending
 
 ---
 
-*Developed by Inayat Hussain for AMD Slingshot 2026*
+## 👨‍💻 About the Developer
+
+**Inayat Hussain** — AI/ML Engineer & Systems Architect
+
+### How This Project Was Built
+
+Shield-Ryzen was engineered through a **systematic, level-by-level approach** — every component was validated before advancing to the next stage:
+
+#### 🧠 Phase 1: Core AI Engine
+- Handpicked the **XceptionNet backbone** from FaceForensics++ research for its proven deepfake detection accuracy
+- Debugged weight loading from `ffpp_c23.pth` — reverse-engineered the key remapping (`last_linear.1` → `fc`) to achieve **276/276 strict weight match**
+- Built the inference pipeline from scratch: **MediaPipe FaceLandmarker → face crop → Xception → real-time classification**
+- Verified class mapping live on camera: **Index 0 = Fake, Index 1 = Real** (confirmed through real-world testing, not assumptions)
+
+#### ⚡ Phase 2: ONNX Migration
+- Exported PyTorch model to **ONNX (Opset 17)** with dynamic batch axes for hardware portability
+- Ran a **10-sample tolerance audit** — PyTorch vs ONNX side-by-side, ensuring **< 0.001 drift** on every test
+- Applied **graph optimization passes** (pruned Dropout, Identity, fused BatchNorm) before quantization
+- Achieved **zero-loss brain cloning** — the ONNX engine produces identical outputs to PyTorch
+
+#### 💎 Phase 3: INT8 Quantization (Diamond Tier)
+- Implemented **Post-Training Static Quantization (PTQ)** using real webcam calibration data — not synthetic noise
+- Captured **50 real face samples** via live webcam for calibration, ensuring the quantized model reflects real-world input distribution
+- Configured **QDQ format** (QuantizeLinear/DequantizeLinear) specifically for AMD Ryzen AI NPU (XDNA architecture)
+- Achieved **74.2% model compression** (79 MB → 20 MB) with **zero label drift** across all test samples
+
+#### 🛡️ Phase 4: Security Engineering
+- Designed a **3-tier security classification system** that goes beyond simple Real/Fake:
+  - **89% confidence threshold** — refuses to verify unless highly confident
+  - **EAR-based blink detection** — prevents photo spoofing attacks
+  - **Laplacian texture analysis** — catches artificially smooth deepfake artifacts
+- Every security decision is **explainable** — the HUD shows EAR values, texture scores, and inference latency per-face
+
+#### 🏗️ Phase 5: Production Hardening
+- **Extracted shared logic** into `shield_utils.py` — single source of truth for preprocessing, biometrics, and classification
+- **Externalized all tunable parameters** to `config.yaml` — security thresholds can be adjusted without touching code
+- **Replaced print() with Python logging** — timestamped, module-tagged output for professional debugging
+- **Maintained CUDA DLL side-loading** on Windows to preserve real-time GPU performance
+
+### Engineering Philosophy
+
+> *"Every line of code must justify its existence. Every model output must be verified against ground truth. Every optimization must preserve accuracy."*
+
+- **Privacy-First**: All processing runs **100% locally** — no cloud APIs, no data upload, no external dependencies at inference time
+- **Hardware-Aware**: Built on NVIDIA CUDA today, engineered for **AMD XDNA NPU tomorrow** — the QDQ quantization format ensures seamless NPU migration
+- **Audit-Driven**: Every phase concluded with a formal audit — tolerance tests, speed benchmarks, accuracy comparisons — before advancing
+- **Production-Grade**: Not a prototype — this is deployable software with structured logging, YAML configuration, modular architecture, and comprehensive documentation
+
+### Connect
+
+- **GitHub**: [@Inayat-0007](https://github.com/Inayat-0007)
+- **Competition**: AMD Slingshot 2026
+- **Target Hardware**: AMD Ryzen AI (NPU) — XDNA Architecture
+
+---
+
+*Built with precision by Inayat Hussain — from raw weights to Diamond Tier deployment.* 🛡️💎
