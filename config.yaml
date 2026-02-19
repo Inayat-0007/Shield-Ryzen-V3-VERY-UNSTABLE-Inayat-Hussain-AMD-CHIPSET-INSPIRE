@@ -14,6 +14,7 @@ security:
   laplacian_threshold: 15       # Further lowered for realism
 
 use_audio: true
+camera_id: 1
 
 preprocessing:
   input_size: 299               # Xception input resolution (299x299)

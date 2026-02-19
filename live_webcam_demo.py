@@ -6,14 +6,51 @@ import sys
 import time
 from v3_int8_engine import ShieldEngine
 
+def list_cameras():
+    print("[INIT] Scanning for connected cameras (Index 0-3)...")
+    available = []
+    # Check first 4 indices (DSHOW is faster but still takes a moment)
+    for i in range(4):
+        cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+        if cap.isOpened():
+            ret, _ = cap.read()
+            if ret:
+                available.append(i)
+            cap.release()
+    return available
+
 def run_live():
     # Load config
     config_path = "config.yaml"
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
-    # Ensure plug-in webcam is used (Default 0 for safety)
-    config["camera_id"] = 0
+    # Select Camera
+    cameras = list_cameras()
+    if not cameras:
+        print("[ERROR] No cameras found! Check connection.")
+        return
+
+    print(f"\n[CAM] Available Camera Indices: {cameras}")
+    selected_cam = 0
+    if len(cameras) > 1:
+        start_t = time.time()
+        # Non-blocking input is hard in standard python without curses/external libs.
+        # We will block and wait for user.
+        try:
+            choice = input(f">> Select Camera ID to use {cameras} (Press Enter for Default {cameras[0]}): ")
+            if choice.strip() == "":
+                selected_cam = cameras[0]
+            else:
+                selected_cam = int(choice)
+        except ValueError:
+            print("[WARN] Invalid input. Using default.")
+            selected_cam = cameras[0]
+    elif cameras:
+        selected_cam = cameras[0]
+
+    print(f"[INIT] Using Camera: {selected_cam}\n")
+    config["camera_id"] = selected_cam
     # Use the optimized INT8 model
     config["model_path"] = "shield_ryzen_int8.onnx"
     
