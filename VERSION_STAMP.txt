@@ -1,0 +1,81 @@
+================================================================================
+  SHIELD-RYZEN VERSION STAMP & PROGRESS TRACKER
+================================================================================
+
+LATEST VERSION:   Shield-Ryzen V2.3.1 "Precision"
+STATUS:           STABLE & CALIBRATED
+TIMESTAMP:        2026-02-20 | 21:32:14
+DEVELOPER:        Inayat Hussain
+COMPETITION:      AMD Slingshot 2026
+
+--------------------------------------------------------------------------------
+MILESTONE: V2.3.1 PRECISION ACHIEVED
+--------------------------------------------------------------------------------
+[DONE] Fixed "Garbage" False Positives on real human faces.
+[DONE] Calibrated Physics Shield (Margin=4.0x) for real-time distance tracking.
+[DONE] Percentage-Based FAKE Lockout (50% window threshold).
+[DONE] Total Frame Audit: 21,000+ frames of verification.
+[DONE] Real-time Audit Monitor (_live_audit.py).
+
+--------------------------------------------------------------------------------
+CURRENT FORENSIC LIMITS:
+--------------------------------------------------------------------------------
+- Texture Floor: 700.0 (Base) / 1500.0 (Max)
+- Distance Range: 30cm - 500cm
+- Neural Threshold: > 50% for REAL (with T=2.0 Calibration)
+
+NEXT STEP: 
+Ready for high-level debug run. Toggle between Human/AI face to verify 
+the %-based lockout splits them correctly.
+================================================================================
+
+
+Thought for <1s
+
+
+🛡️ SHIELD-RYZEN: AGENT-ENGINEER "EXTREME" ARCHITECTURE DEEP DIVE
+This is a master-level technical decomposition of the Shield-Ryzen V2.3.1 "Precision" Architecture.
+
+I. The Core Engine: Async Triple-Buffer Pipeline
+Unlike standard sequential AI scripts (Capture → Process → Show), Shield-Ryzen uses a Parallel Execution Pipeline to eliminate "Input Lag" and maximize Ryzen AI NPU utilization.
+
+Buffer A (The Eyes): A dedicated ShieldCamera thread capturing raw frames via DirectShow at 30-60 FPS.
+Buffer B (The Brain): The 
+ShieldEngine
+ running the Neural + Forensic + Physics logic in parallel. It uses 
+IdentityTracker
+ (IOU-based) to ensure that UID-0 on frame 1 is the same UID-0 on frame 1000.
+Buffer C (The Voice): The ShieldHUD rendering the GFX layer using alpha-blending, ensuring the UI 10 FPS does not slow down the camera's 30 FPS.
+II. Tiered Forensic Defense (The 3-Tier Security Stack)
+Shield-Ryzen does not just "ask" the AI if a face is real. It performs a Cross-Metric Interrogation:
+
+Tier 1: Neural Probabilistic (Deepfake Detection)
+Model: XceptionNet (FaceForensics++ weights), quantized to INT8.
+Math: calibrated_probs = softmax(logits / Temperature).
+Engineering Fix: We use T=2.0 (Temperature Scaling) to force the model to be more "doubtful." This makes it easier to catch the subtle "Fake" spikes in AI videos.
+Tier 2: Liveness Photonic (Blink & Response)
+Trigger: MediaPipe 478-point Landmarker.
+Metric: EAR (Eye Aspect Ratio). If the user doesn't blink within a 1.5s grace period, the state demotes to FAIL.
+Persistence: A face must display a natural "High-to-Low-to-High" EAR curve before it is promoted to VERIFIED.
+Tier 3: Physical Ground-Truth (The Screen Shield)
+This is where we catch "Replay Attacks" using pure physics:
+
+The Problem: High-resolution phone screens look "Too Sharp" to an AI.
+The Formula: We use the Inverse Square Law of Texture Resolution.
+$MaxTexture = 700 \times (50/Distance)^2 \times 4$
+If a face at 100cm has the sharpness of a face at 30cm, it is mathematically impossible for it to be human skin — it must be a 4K phone screen.
+III. The State-Machine & Lockout Logic (V2.3.1 Precision)
+This is the "Brain's Memory" that prevents hackers from tricking the system.
+
+Rolling Window Consensus: We track the last 60 frames for every face.
+Percentage-Based Lockout: If 
+(Sum of FAKE Frames / 60) > 0.50
+, the identity is placed in FAKE Lockout.
+Neural Trace (The Scorch Mask): If the neural confidence ever hits < 0.20, that face ID is "Poisoned." Even if they look real later, the system remembers the deepfake signature and blocks VERIFIED status.
+IV. Module Calibration Matrix (V2.3.1)
+Parameter	Value	Technical Rationale
+Ref_Texture	700.0	Calibrated to real human skin resolution at 50cm.
+Abs_Cap	1500.0	The upper limit for human skin; anything higher is a pixel grid.
+Safety_Margin	4.0x	Allows for extreme lighting variance/HDR while catching screens.
+Moire_Thresh	0.50	Filtered to ignore skin pores but catch digital grid interference.
+Fusion_Min	3.0	Requires 3 separate forensic failures before a physical lockout.
