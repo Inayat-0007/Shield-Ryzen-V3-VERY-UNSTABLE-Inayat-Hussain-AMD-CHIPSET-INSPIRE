@@ -19,6 +19,14 @@ import argparse
 import sys
 import os
 import time
+import warnings
+
+# Suppress harmless ONNX Runtime and TensorFlow warnings
+# (these cause PowerShell NativeCommandError when using 2>&1 redirect)
+warnings.filterwarnings("ignore", category=UserWarning, module="onnxruntime")
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # Suppress TF/MediaPipe C++ warnings
+os.environ["GLOG_minloglevel"] = "2"      # Suppress MediaPipe W0000 warnings
+
 import cv2
 import numpy as np
 

@@ -276,18 +276,25 @@ def compute_texture_score(
 
     if distance_cm > 40:
         max_expected = REFERENCE_TEXTURE * (REFERENCE_DISTANCE / distance_cm) ** 2
-        max_allowed = max_expected * 4.0  # 4x safety margin — real face variance is extreme
+        # 8x safety margin — real faces at 85-100cm can produce LAP 1000-2800
+        # due to lens sharpening, lighting contrast, and webcam ISP processing.
+        # The inverse-square model is only an approximation; real variance is extreme.
+        max_allowed = max_expected * 8.0
 
         if lap_var > max_allowed:
-            screen_replay_flag = True
+            # IMPORTANT: Physics alone is NOT enough to confirm screen replay.
+            # It's a contributing signal only — must be corroborated by moiré or light.
+            # DO NOT set screen_replay_flag here.
             sig = min((lap_var / max_allowed - 1.0) / 2.0, 1.0)
             screen_confidence = max(screen_confidence, sig)
             screen_signals.append(("physics", sig))
 
-    ABSOLUTE_TEXTURE_CAP = 1500.0  # Real faces reach 950 at 46cm; screens produce 2000+
+    # Absolute cap: Real faces can produce LAP up to ~2500 at far distances
+    # with good lighting and sharp webcam lenses. Only flag above 2500.
+    ABSOLUTE_TEXTURE_CAP = 2500.0
     if lap_var > ABSOLUTE_TEXTURE_CAP and not screen_replay_flag:
-        screen_replay_flag = True
-        sig = min((lap_var - ABSOLUTE_TEXTURE_CAP) / 500.0, 0.9)
+        # Even the absolute cap is only a signal — needs corroboration
+        sig = min((lap_var - ABSOLUTE_TEXTURE_CAP) / 1000.0, 0.9)
         screen_confidence = max(screen_confidence, sig)
         screen_signals.append(("abs_cap", sig))
 
@@ -316,10 +323,16 @@ def compute_texture_score(
             screen_confidence = max(screen_confidence, screen_light_score)
 
     # ── LAYER 5: Combined Weak-Signal Fusion ──
-    # CONSERVATIVE: Require 3+ signals above 0.35 to prevent false positives.
-    # Indoor lighting can produce 1-2 weak signals on real faces.
+    # CRITICAL: Physics alone is NEVER enough to confirm screen replay.
+    # Real faces at 85-100cm routinely produce high texture values.
+    # Require at least one PHYSICAL EVIDENCE signal (moiré or screen_light)
+    # alongside physics to confirm. This prevents false positives from
+    # distance-dependent texture variance while still catching real screens
+    # (which produce both high texture AND moiré/light anomalies).
     active_signals = [(n, s) for n, s in screen_signals if s > 0.35]
-    if len(active_signals) >= 3 and not screen_replay_flag:
+    has_physical_evidence = any(n in ("moire", "screen_light") for n, s in active_signals)
+    
+    if len(active_signals) >= 2 and has_physical_evidence and not screen_replay_flag:
         combined = sum(s for _, s in active_signals) / len(active_signals)
         if combined > 0.45:
             screen_replay_flag = True

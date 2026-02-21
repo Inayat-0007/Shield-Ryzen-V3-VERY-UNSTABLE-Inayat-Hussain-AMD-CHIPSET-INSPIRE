@@ -70,24 +70,35 @@ class Colors:
 # ═══════════════════════════════════════════════════════════
 
 def draw_rounded_rect(img, pt1, pt2, color, radius=12, thickness=-1, alpha=0.85):
-    """Draw a rounded rectangle with transparency."""
+    """Draw a rounded rectangle with transparency — ROI OPTIMIZED."""
     h, w = img.shape[:2]
     x1, y1 = max(0, pt1[0]), max(0, pt1[1])
     x2, y2 = min(w, pt2[0]), min(h, pt2[1])
+    
     if x2 <= x1 or y2 <= y1:
         return
 
-    overlay = img.copy()
-    r = min(radius, (x2 - x1) // 2, (y2 - y1) // 2)
+    # ── PERFORMANCE FIX: Extract only the ROI ──
+    # Instead of img.copy(), we only process the area covered by the rect
+    rw, rh = x2 - x1, y2 - y1
+    roi = img[y1:y2, x1:x2].copy()
+    overlay = roi.copy()
+    
+    # Coordinates relative to ROI
+    rx1, ry1 = 0, 0
+    rx2, ry2 = rw, rh
+    r = min(radius, rw // 2, rh // 2)
 
-    cv2.rectangle(overlay, (x1 + r, y1), (x2 - r, y2), color, thickness)
-    cv2.rectangle(overlay, (x1, y1 + r), (x2, y2 - r), color, thickness)
-    cv2.circle(overlay, (x1 + r, y1 + r), r, color, thickness)
-    cv2.circle(overlay, (x2 - r, y1 + r), r, color, thickness)
-    cv2.circle(overlay, (x1 + r, y2 - r), r, color, thickness)
-    cv2.circle(overlay, (x2 - r, y2 - r), r, color, thickness)
+    # Draw rounded shapes on the ROI overlay
+    cv2.rectangle(overlay, (rx1 + r, ry1), (rx2 - r, ry2), color, thickness)
+    cv2.rectangle(overlay, (rx1, ry1 + r), (rx2, ry2 - r), color, thickness)
+    cv2.circle(overlay, (rx1 + r, ry1 + r), r, color, thickness)
+    cv2.circle(overlay, (rx2 - r, ry1 + r), r, color, thickness)
+    cv2.circle(overlay, (rx1 + r, ry2 - r), r, color, thickness)
+    cv2.circle(overlay, (rx2 - r, ry2 - r), r, color, thickness)
 
-    cv2.addWeighted(overlay, alpha, img, 1.0 - alpha, 0, img)
+    # Blend ONLY the ROI back into the original image
+    cv2.addWeighted(overlay, alpha, roi, 1.0 - alpha, 0, img[y1:y2, x1:x2])
 
 
 def draw_text(img, text, pos, scale=0.5, color=(240, 240, 245), thickness=1, font=cv2.FONT_HERSHEY_DUPLEX):

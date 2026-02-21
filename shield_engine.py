@@ -299,8 +299,9 @@ class ShieldEngine:
             
         if self.use_onnx:
             import onnxruntime as ort
-            # Try VitisAI first for Ryzen AI NPU, then DirectML for AMD GPU, then CUDA for NVIDIA
-            providers = ["VitisAIExecutionProvider", "DmlExecutionProvider", "CUDAExecutionProvider", "CPUExecutionProvider"]
+            # PERFORMANCE TUNING: INT8 models often run faster on Ryzen CPUs than on mobile iGPUs via DirectML.
+            # We prioritize VitisAI (NPU) first, then CPU (AVX optimized), then DML (GPU), then CUDA.
+            providers = ["VitisAIExecutionProvider", "CPUExecutionProvider", "DmlExecutionProvider", "CUDAExecutionProvider"]
             try:
                 self.session = ort.InferenceSession(self.model_path, providers=providers)
                 self.logger.log({"event": "model_loaded", "type": "ONNX", "providers": self.session.get_providers()})
@@ -647,26 +648,49 @@ class ShieldEngine:
             )
             tex_score, tex_suspicious, tex_explain = compute_texture_score(
                 face.face_crop_raw, tex_baseline, distance_cm=clamped_dist)
+            
+            # HEAD POSE OVERRIDE: At steep angles (yaw>30° or pitch>25°),
+            # the forehead ROI is severely foreshortened, producing artificially
+            # low Laplacian values (e.g. 6.8 instead of 600+). This is a
+            # geometric artifact, NOT evidence of a screen. Don't let it
+            # trigger Forensic FAIL.
+            hp = face.head_pose if face.head_pose else (0.0, 0.0, 0.0)
+            if abs(hp[0]) > 30.0 or abs(hp[1]) > 25.0:
+                if tex_suspicious and "SCREEN_REPLAY" not in tex_explain:
+                    tex_suspicious = False  # Unreliable at extreme angles
 
             # 2f: Plugin votes (Parts 7-8)
             # Skip expensive plugins for small/distant faces to preserve FPS
+            # PERFORMANCE FIX: Run plugins only every few frames to prevent 1 FPS bottleneck
+            state_ctx.setdefault("plugin_frame_counter", 0)
+            state_ctx["plugin_frame_counter"] += 1
+            PLUGIN_DIVIDER = 3 # Run plugins every 3 frames (~3-5 FPS analysis)
+            
             plugin_votes = []
-            if is_small_face:
-                # Small face — only run lightweight plugins
-                for plugin in self.plugins:
-                    if plugin.name in ("skin_reflectance", "codec_forensics"):
+            if state_ctx["plugin_frame_counter"] % PLUGIN_DIVIDER == 0:
+                if is_small_face:
+                    # Small face — only run lightweight plugins
+                    for plugin in self.plugins:
+                        if plugin.name in ("skin_reflectance", "codec_forensics"):
+                            try:
+                                vote = plugin.analyze(face, frame)
+                                plugin_votes.append(vote)
+                            except Exception as e:
+                                self.logger.warn(f"Plugin {plugin.name} failed: {e}")
+                else:
+                    for plugin in self.plugins:
                         try:
                             vote = plugin.analyze(face, frame)
                             plugin_votes.append(vote)
                         except Exception as e:
                             self.logger.warn(f"Plugin {plugin.name} failed: {e}")
             else:
-                for plugin in self.plugins:
-                    try:
-                        vote = plugin.analyze(face, frame)
-                        plugin_votes.append(vote)
-                    except Exception as e:
-                        self.logger.warn(f"Plugin {plugin.name} failed: {e}")
+                # Use last recorded plugin votes to maintain state machine stability
+                plugin_votes = state_ctx.get("last_plugin_votes", [])
+            
+            # Cache votes
+            if plugin_votes:
+                state_ctx["last_plugin_votes"] = plugin_votes
 
             # 2g: Fuse ALL decisions (Part 3 state machine)
             tier1 = neural_verdict
@@ -740,9 +764,11 @@ class ShieldEngine:
             
             if len(window) >= 20:  # Need at least 20 frames for reliable %
                 fake_pct = sum(window) / len(window)
-                # If >50% FAKE over the window, activate lockout
-                if fake_pct > 0.50:
-                    state_ctx["fake_lockout_until"] = time.monotonic() + 20.0
+                # If >60% FAKE over the window, activate lockout
+                # Real face jitter produces ~28% FAKE, AI video produces 70-82% FAKE
+                # 60% threshold separates these clearly while allowing for distance changes
+                if fake_pct > 0.60:
+                    state_ctx["fake_lockout_until"] = time.monotonic() + 10.0
             
             # Track neural confidence minimum — if it ever drops very low,
             # this face has shown deepfake characteristics
