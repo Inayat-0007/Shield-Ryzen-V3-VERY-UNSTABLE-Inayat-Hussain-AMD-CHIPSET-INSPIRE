@@ -299,8 +299,8 @@ class ShieldEngine:
             
         if self.use_onnx:
             import onnxruntime as ort
-            # Try VitisAI first for Ryzen AI NPU
-            providers = ["VitisAIExecutionProvider", "CUDAExecutionProvider", "CPUExecutionProvider"]
+            # Try VitisAI first for Ryzen AI NPU, then DirectML for AMD GPU, then CUDA for NVIDIA
+            providers = ["VitisAIExecutionProvider", "DmlExecutionProvider", "CUDAExecutionProvider", "CPUExecutionProvider"]
             try:
                 self.session = ort.InferenceSession(self.model_path, providers=providers)
                 self.logger.log({"event": "model_loaded", "type": "ONNX", "providers": self.session.get_providers()})
